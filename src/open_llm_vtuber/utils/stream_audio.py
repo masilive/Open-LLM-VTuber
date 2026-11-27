@@ -1,4 +1,7 @@
+import asyncio
 import base64
+from typing import Any
+
 from pydub import AudioSegment
 from pydub.utils import make_chunks
 from ..agent.output_types import Actions
@@ -30,7 +33,7 @@ def prepare_audio_payload(
     display_text: DisplayText = None,
     actions: Actions = None,
     forwarded: bool = False,
-) -> dict[str, any]:
+) -> dict[str, Any]:
     """
     Prepares the audio payload for sending to a broadcast endpoint.
     If audio_path is None, returns a payload with audio=None for silent display.
@@ -80,6 +83,43 @@ def prepare_audio_payload(
     }
 
     return payload
+
+
+async def async_prepare_audio_payload(
+    audio_path: str | None,
+    chunk_length_ms: int = 20,
+    display_text: DisplayText = None,
+    actions: Actions = None,
+    forwarded: bool = False,
+) -> dict[str, Any]:
+    """Prepare an audio payload without blocking the event loop.
+
+    Args:
+        audio_path: Path to the audio file, or ``None`` for silent display.
+        chunk_length_ms: Length of each volume-analysis chunk in milliseconds.
+        display_text: Text to display with the audio.
+        actions: Actions associated with the audio.
+        forwarded: Whether this payload is forwarded to another group member.
+
+    Returns:
+        The audio payload to send over the WebSocket.
+    """
+    if not audio_path:
+        return prepare_audio_payload(
+            audio_path=None,
+            chunk_length_ms=chunk_length_ms,
+            display_text=display_text,
+            actions=actions,
+            forwarded=forwarded,
+        )
+    return await asyncio.to_thread(
+        prepare_audio_payload,
+        audio_path,
+        chunk_length_ms,
+        display_text,
+        actions,
+        forwarded,
+    )
 
 
 # Example usage:

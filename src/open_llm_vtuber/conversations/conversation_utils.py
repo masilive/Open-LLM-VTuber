@@ -13,7 +13,7 @@ from ..agent.input_types import BatchInput, TextData, ImageData, TextSource, Ima
 from ..asr.asr_interface import ASRInterface
 from ..live2d_model import Live2dModel
 from ..tts.tts_interface import TTSInterface
-from ..utils.stream_audio import prepare_audio_payload
+from ..utils.stream_audio import async_prepare_audio_payload
 
 
 # Convert class methods to standalone functions
@@ -121,10 +121,10 @@ async def handle_audio_output(
     full_response = ""
     async for audio_path, display_text, transcript, actions in output:
         full_response += transcript
-        audio_payload = prepare_audio_payload(
+        audio_payload = await async_prepare_audio_payload(
             audio_path=audio_path,
             display_text=display_text,
-            actions=actions.to_dict() if actions else None,
+            actions=actions,
         )
         await websocket_send(json.dumps(audio_payload))
     return full_response
@@ -168,6 +168,9 @@ async def finalize_conversation_turn(
     """Finalize a conversation turn"""
     if tts_manager.task_list:
         await asyncio.gather(*tts_manager.task_list)
+
+    if tts_manager.has_output:
+        await tts_manager.wait_for_delivery()
         await websocket_send(json.dumps({"type": "backend-synth-complete"}))
 
         response = await message_handler.wait_for_response(

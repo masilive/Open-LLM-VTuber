@@ -1,0 +1,29 @@
+{
+  "read_config_from": {
+    "agents_standard": true,
+    "cursor": true,
+    "windsurf": true,
+    "claude": true
+  },
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Exec(git status)",
+      "Exec(git diff)",
+      "Exec(git log)",
+      "Exec(git submodule status)",
+      "Exec(uv run ruff)",
+      "Exec(uv run python -m compileall)"
+    ],
+    "ask": [
+      "Write(conf.yaml)",
+      "Write(mcp_servers.json)",
+      "Write(.env*)",
+      "Write(**/*.key)",
+      "Write(**/*.pem)",
+      "Exec(git push)",
+      "Exec(uv add)",
+      "Exec(uv remove)"
+    ]
+  }
+}

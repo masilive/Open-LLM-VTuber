@@ -1,0 +1,106 @@
+clone:
+  submodules: recursive
+
+initialize:
+  - name: Install Python 3.10
+    uses: github.com/actions/setup-python@v5
+    with:
+      python-version: "3.10"
+
+  - name: Install FFmpeg
+    run: |
+      if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v curl >/dev/null 2>&1; then
+        if [ "$(id -u)" -eq 0 ]; then
+          apt-get update
+          apt-get install -y ffmpeg curl ca-certificates
+        elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg curl ca-certificates
+        else
+          echo "FFmpeg or curl is missing and apt-get requires root or passwordless sudo" >&2
+          exit 1
+        fi
+      fi
+      ffmpeg -version
+
+  - name: Install uv
+    run: |
+      if ! command -v uv >/dev/null 2>&1; then
+        if command -v curl >/dev/null 2>&1; then
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+        else
+          wget -qO- https://astral.sh/uv/install.sh | sh
+        fi
+      fi
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$ENVRC"
+      export PATH="$HOME/.local/bin:$PATH"
+      uv --version
+
+maintenance:
+  - name: Initialize frontend submodule
+    run: git submodule update --init --recursive
+
+  - name: Install Python dependencies
+    run: |
+      export PATH="$HOME/.local/bin:$PATH"
+      uv sync --frozen
+
+  - name: Create default runtime configuration
+    run: |
+      if [ ! -f conf.yaml ]; then
+        cp config_templates/conf.default.yaml conf.yaml
+      fi
+
+  - name: Validate Python environment
+    run: |
+      export PATH="$HOME/.local/bin:$PATH"
+      uv run python -m compileall -q src run_server.py upgrade.py
+      uv run ruff check .
+
+knowledge:
+  - name: setup
+    contents: |
+      Fresh setup requires Python >=3.10,<3.13, FFmpeg, uv, and the frontend git submodule.
+      Use:
+        git submodule update --init --recursive
+        uv sync
+        cp config_templates/conf.default.yaml conf.yaml  # only when conf.yaml is absent
+
+      FFmpeg is required for audio runtime behavior. The default configuration uses Ollama at localhost:11434, sherpa-onnx ASR, and edge_tts. Runtime providers and credentials belong in the ignored conf.yaml, not in source control.
+
+  - name: lint
+    contents: |
+      Run lint:
+        uv run ruff check .
+
+      Check formatting:
+        uv run ruff format --check .
+
+      Format files intentionally being changed:
+        uv run ruff format <paths>
+
+  - name: test
+    contents: |
+      This repository currently has no automated test suite. Do not claim that tests passed.
+      Use targeted verification:
+        uv run python -m compileall -q src run_server.py upgrade.py
+        uv run python -c "from src.open_llm_vtuber.config_manager import read_yaml, validate_config; validate_config(read_yaml('conf.yaml')); print('conf.yaml valid')"
+
+      Add risk-appropriate smoke checks for the changed area and report manual verification gaps.
+
+  - name: startup
+    contents: |
+      Start the backend from the repository root:
+        uv run run_server.py
+
+      For verbose logs:
+        uv run run_server.py --verbose
+
+      The server is long-running and normally listens on localhost:12393. Startup may download model files and can fail when configured providers such as Ollama are unavailable. Verify ffmpeg -version, frontend/index.html, and conf.yaml before runtime smoke tests.
+
+  - name: project-rules
+    contents: |
+      Detailed project rules are in CLAUDE.md and .cursor/rules/olv-core-rules.mdc.
+      Use uv rather than pip. Preserve offline-ready core behavior, low latency, async/non-blocking implementation, cross-platform support, and strict frontend/backend separation.
+      Do not edit the compiled frontend/ submodule in this repository. Do not commit conf.yaml, mcp_servers.json, credentials, cache/, logs/, models/, or chat_history/.
+      Configuration schema changes require updates to both config_templates/conf.default.yaml and config_templates/conf.ZH.default.yaml plus the Pydantic models in src/open_llm_vtuber/config_manager/.

@@ -45,6 +45,8 @@ ABBREVIATIONS = [
     "Dr.",
 ]
 
+_LANGUAGE_UNSET = object()
+
 # Set of languages directly supported by pysbd
 SUPPORTED_LANGUAGES = {
     "am",
@@ -210,6 +212,43 @@ def segment_text_by_regex(text: str) -> Tuple[List[str], str]:
     return complete_sentences, remaining_text
 
 
+def _segment_text_with_pysbd_language(
+    text: str, language: str | None
+) -> Tuple[List[str], str]:
+    """Segment text with a previously selected language.
+
+    Args:
+        text: Text to segment into sentences.
+        language: Supported language code, or ``None`` to use regex segmentation.
+
+    Returns:
+        Tuple[List[str], str]: Complete sentences and remaining incomplete text.
+    """
+    if language is None:
+        return segment_text_by_regex(text)
+
+    segmenter = pysbd.Segmenter(language=language, clean=False)
+    sentences = segmenter.segment(text)
+    if not sentences:
+        return [], text
+
+    complete_sentences = []
+    for sentence in sentences[:-1]:
+        sentence = sentence.strip()
+        if sentence:
+            complete_sentences.append(sentence)
+
+    last_sentence = sentences[-1].strip()
+    if is_complete_sentence(last_sentence):
+        complete_sentences.append(last_sentence)
+        remaining = ""
+    else:
+        remaining = last_sentence
+
+    logger.debug(f"Processed sentences: {complete_sentences}, Remaining: {remaining}")
+    return complete_sentences, remaining
+
+
 def segment_text_by_pysbd(text: str) -> Tuple[List[str], str]:
     """
     Segment text into complete sentences and remaining text.
@@ -225,44 +264,9 @@ def segment_text_by_pysbd(text: str) -> Tuple[List[str], str]:
         return [], ""
 
     try:
-        # Detect language
-        lang = detect_language(text)
-
-        if lang is not None:
-            # Use pysbd for supported languages
-            segmenter = pysbd.Segmenter(language=lang, clean=False)
-            sentences = segmenter.segment(text)
-
-            if not sentences:
-                return [], text
-
-            # Process all but the last sentence
-            complete_sentences = []
-            for sent in sentences[:-1]:
-                sent = sent.strip()
-                if sent:
-                    complete_sentences.append(sent)
-
-            # Handle the last sentence
-            last_sent = sentences[-1].strip()
-            if is_complete_sentence(last_sent):
-                complete_sentences.append(last_sent)
-                remaining = ""
-            else:
-                remaining = last_sent
-
-        else:
-            # Use regex for unsupported languages
-            return segment_text_by_regex(text)
-
-        logger.debug(
-            f"Processed sentences: {complete_sentences}, Remaining: {remaining}"
-        )
-        return complete_sentences, remaining
-
+        return _segment_text_with_pysbd_language(text, detect_language(text))
     except Exception as e:
         logger.error(f"Error in sentence segmentation: {e}")
-        # Fallback to regex on any error
         return segment_text_by_regex(text)
 
 
@@ -318,6 +322,7 @@ class SentenceDivider:
         self.valid_tags = valid_tags or ["think"]
         self._is_first_sentence = True
         self._buffer = ""
+        self._detected_language = _LANGUAGE_UNSET
         # Replace active_tags dict with a stack to handle nesting
         self._tag_stack = []
 
@@ -599,10 +604,17 @@ class SentenceDivider:
         """Segment text using the configured method"""
         if self.segment_method == "regex":
             return segment_text_by_regex(text)
-        return segment_text_by_pysbd(text)
+        if self._detected_language is _LANGUAGE_UNSET:
+            self._detected_language = detect_language(text)
+        try:
+            return _segment_text_with_pysbd_language(text, self._detected_language)
+        except Exception as e:
+            logger.error(f"Error in sentence segmentation: {e}")
+            return segment_text_by_regex(text)
 
     def reset(self):
         """Reset the divider state for a new conversation"""
         self._is_first_sentence = True
         self._buffer = ""
         self._tag_stack = []
+        self._detected_language = _LANGUAGE_UNSET
