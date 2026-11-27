@@ -3,7 +3,6 @@ from fastapi import WebSocket, WebSocketDisconnect
 import asyncio
 import json
 from enum import Enum
-import numpy as np
 from loguru import logger
 
 from .service_context import ServiceContext
@@ -15,6 +14,7 @@ from .chat_group import (
 )
 from .message_handler import message_handler
 from .utils.stream_audio import prepare_audio_payload
+from .utils.audio_buffer import AudioBuffer
 from .chat_history_manager import (
     create_new_history,
     get_history,
@@ -68,7 +68,7 @@ class WebSocketHandler:
         self.chat_group_manager = ChatGroupManager()
         self.current_conversation_tasks: Dict[str, Optional[asyncio.Task]] = {}
         self.default_context_cache = default_context_cache
-        self.received_data_buffers: Dict[str, np.ndarray] = {}
+        self.received_data_buffers: Dict[str, AudioBuffer] = {}
 
         # Message handlers mapping
         self._message_handlers = self._init_message_handlers()
@@ -141,7 +141,7 @@ class WebSocketHandler:
         """Store client data and initialize group status"""
         self.client_connections[client_uid] = websocket
         self.client_contexts[client_uid] = session_service_context
-        self.received_data_buffers[client_uid] = np.array([])
+        self.received_data_buffers[client_uid] = AudioBuffer()
 
         self.chat_group_manager.client_group_map[client_uid] = ""
         await self.send_group_update(websocket, client_uid)
@@ -297,7 +297,8 @@ class WebSocketHandler:
             send_group_update=self.send_group_update,
         )
 
-        # Clean up other client data
+        # Clean up client data and close engine resources before dropping the reference.
+        context = self.client_contexts.get(client_uid)
         self.client_connections.pop(client_uid, None)
         self.client_contexts.pop(client_uid, None)
         self.received_data_buffers.pop(client_uid, None)
@@ -307,8 +308,6 @@ class WebSocketHandler:
                 task.cancel()
             self.current_conversation_tasks.pop(client_uid, None)
 
-        # Call context close to clean up resources (e.g., MCPClient)
-        context = self.client_contexts.get(client_uid)
         if context:
             await context.close()
 
@@ -317,10 +316,13 @@ class WebSocketHandler:
 
     async def _cleanup_failed_connection(self, client_uid: str) -> None:
         """Clean up failed connection data"""
+        context = self.client_contexts.get(client_uid)
         self.client_connections.pop(client_uid, None)
         self.client_contexts.pop(client_uid, None)
         self.received_data_buffers.pop(client_uid, None)
         self.chat_group_manager.client_group_map.pop(client_uid, None)
+        if context:
+            await context.close()
 
         if client_uid in self.current_conversation_tasks:
             task = self.current_conversation_tasks[client_uid]
@@ -481,10 +483,7 @@ class WebSocketHandler:
         """Handle incoming audio data"""
         audio_data = data.get("audio", [])
         if audio_data:
-            self.received_data_buffers[client_uid] = np.append(
-                self.received_data_buffers[client_uid],
-                np.array(audio_data, dtype=np.float32),
-            )
+            self.received_data_buffers[client_uid].append_float32(audio_data)
 
     async def _handle_raw_audio_data(
         self, websocket: WebSocket, client_uid: str, data: WSMessage
@@ -502,9 +501,8 @@ class WebSocketHandler:
                     pass
                 elif len(audio_bytes) > 1024:
                     # Detected audio activity (voice)
-                    self.received_data_buffers[client_uid] = np.append(
-                        self.received_data_buffers[client_uid],
-                        np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32),
+                    self.received_data_buffers[client_uid].append_int16_bytes(
+                        audio_bytes
                     )
                     await websocket.send_text(
                         json.dumps({"type": "control", "text": "mic-audio-end"})

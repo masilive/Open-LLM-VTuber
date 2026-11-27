@@ -66,12 +66,15 @@ colorama==0.4.6 ; sys_platform == 'win32'
     # via
     #   click
     #   loguru
+    #   pytest
     #   tqdm
     #   uvicorn
 coloredlogs==15.0.1
     # via onnxruntime
 comtypes==1.4.15 ; sys_platform == 'win32'
     # via pyttsx3
+coverage==7.16.2
+    # via pytest-cov
 cryptography==46.0.3
     # via pyjwt
 cuda-bindings==12.9.4 ; platform_machine == 'x86_64' and sys_platform == 'linux'
@@ -101,7 +104,9 @@ email-validator==2.3.0
     #   fastapi
     #   pydantic
 exceptiongroup==1.3.1 ; python_full_version < '3.11'
-    # via anyio
+    # via
+    #   anyio
+    #   pytest
 fastapi==0.128.0
     # via open-llm-vtuber
 fastapi-cli==0.0.20
@@ -160,6 +165,8 @@ idna==3.11
     #   httpx
     #   requests
     #   yarl
+iniconfig==2.3.1
+    # via pytest
 iterators==0.2.0
     # via cartesia
 jinja2==3.1.6
@@ -252,9 +259,13 @@ onnxruntime==1.23.2
 openai==2.15.0
     # via open-llm-vtuber
 packaging==26.0
-    # via onnxruntime
+    # via
+    #   onnxruntime
+    #   pytest
 platformdirs==4.5.1
     # via virtualenv
+pluggy==1.7.0
+    # via pytest
 pre-commit==4.5.1
     # via open-llm-vtuber
 propcache==0.4.1
@@ -1023,6 +1034,12 @@ pyreadline3==3.5.4 ; sys_platform == 'win32'
     # via humanfriendly
 pysbd==0.3.4
     # via open-llm-vtuber
+pytest==8.3.4
+    # via
+    #   pytest-asyncio
+    #   pytest-cov
+pytest-asyncio==0.25.3
+pytest-cov==6.1.1
 python-dotenv==1.2.1
     # via
     #   mcp
@@ -1110,8 +1127,10 @@ tabulate==0.9.0
     # via edge-tts
 tomli==2.4.0
     # via
+    #   coverage
     #   fastapi-cli
     #   open-llm-vtuber
+    #   pytest
 torch==2.2.2 ; platform_machine == 'x86_64' and sys_platform == 'darwin'
     # via open-llm-vtuber
 torch==2.10.0 ; platform_machine == 'arm64' or sys_platform != 'darwin'

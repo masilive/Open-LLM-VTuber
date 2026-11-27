@@ -9,7 +9,7 @@ from loguru import logger
 from ..agent.output_types import DisplayText, Actions
 from ..live2d_model import Live2dModel
 from ..tts.tts_interface import TTSInterface
-from ..utils.stream_audio import prepare_audio_payload
+from ..utils.stream_audio import async_prepare_audio_payload, prepare_audio_payload
 from .types import WebSocketSend
 
 
@@ -98,8 +98,11 @@ class TTSTaskManager:
 
         while True:
             try:
-                # Get payload from queue
                 payload, sequence_number = await self._payload_queue.get()
+            except asyncio.CancelledError:
+                break
+
+            try:
                 buffered_payloads[sequence_number] = payload
 
                 # Send payloads in order
@@ -107,11 +110,17 @@ class TTSTaskManager:
                     next_payload = buffered_payloads.pop(self._next_sequence_to_send)
                     await websocket_send(json.dumps(next_payload))
                     self._next_sequence_to_send += 1
-
+            finally:
                 self._payload_queue.task_done()
 
-            except asyncio.CancelledError:
-                break
+    async def wait_for_delivery(self) -> None:
+        """Wait until every queued audio payload has been sent in sequence."""
+        await self._payload_queue.join()
+
+    @property
+    def has_output(self) -> bool:
+        """Whether this manager has queued any audible or silent output."""
+        return self._sequence_counter > 0
 
     async def _send_silent_payload(
         self,
@@ -140,7 +149,7 @@ class TTSTaskManager:
         audio_file_path = None
         try:
             audio_file_path = await self._generate_audio(tts_engine, tts_text)
-            payload = prepare_audio_payload(
+            payload = await async_prepare_audio_payload(
                 audio_path=audio_file_path,
                 display_text=display_text,
                 actions=actions,
