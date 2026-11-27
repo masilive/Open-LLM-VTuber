@@ -37,6 +37,11 @@ conda
 api_keys.py
 src/open_llm_vtuber/llm/user_credentials.json
 
+# Devin local configuration
+AGENTS.local.md
+.devin/config.local.json
+.devin/mcp_config.local.json
+
 # Database files
 memory.db
 memory.db.bk
