@@ -9,6 +9,7 @@ from .stateless_llm.stateless_llm_with_template import (
 from .stateless_llm.openai_compatible_llm import AsyncLLM as OpenAICompatibleLLM
 from .stateless_llm.ollama_llm import OllamaLLM
 from .stateless_llm.claude_llm import AsyncLLM as ClaudeLLM
+from .api_key_resolver import resolve_api_key
 
 
 class LLMFactory:
@@ -22,6 +23,16 @@ class LLMFactory:
         """
         logger.info(f"Initializing LLM: {llm_provider}")
 
+        env_key_names = {
+            "openai_llm": ("OPENAI_API_KEY",),
+            "claude_llm": ("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"),
+            "windsurf_llm": ("WINDSURF_API_KEY", "CODEIUM_API_KEY"),
+        }.get(llm_provider)
+        if env_key_names:
+            kwargs["llm_api_key"] = resolve_api_key(
+                kwargs.get("llm_api_key"), env_key_names
+            )
+
         if (
             llm_provider == "openai_compatible_llm"
             or llm_provider == "openai_llm"
@@ -31,6 +42,7 @@ class LLMFactory:
             or llm_provider == "groq_llm"
             or llm_provider == "mistral_llm"
             or llm_provider == "lmstudio_llm"
+            or llm_provider == "windsurf_llm"
         ):
             return OpenAICompatibleLLM(
                 model=kwargs.get("model"),

@@ -142,6 +142,15 @@ class OpenAIConfig(OpenAICompatibleConfig):
     )
 
 
+class WindsurfConfig(OpenAICompatibleConfig):
+    """Configuration for an OpenAI-compatible Windsurf bridge endpoint."""
+
+    base_url: str = Field("http://localhost:3003/v1", alias="base_url")
+    interrupt_method: Literal["system", "user"] = Field(
+        "system", alias="interrupt_method"
+    )
+
+
 class GeminiConfig(OpenAICompatibleConfig):
     """Configuration for Gemini API."""
 
@@ -242,6 +251,7 @@ class StatelessLLMConfigs(I18nMixin, BaseModel):
     ollama_llm: OllamaConfig | None = Field(None, alias="ollama_llm")
     lmstudio_llm: LmStudioConfig | None = Field(None, alias="lmstudio_llm")
     openai_llm: OpenAIConfig | None = Field(None, alias="openai_llm")
+    windsurf_llm: WindsurfConfig | None = Field(None, alias="windsurf_llm")
     gemini_llm: GeminiConfig | None = Field(None, alias="gemini_llm")
     zhipu_llm: ZhipuConfig | None = Field(None, alias="zhipu_llm")
     deepseek_llm: DeepseekConfig | None = Field(None, alias="deepseek_llm")
@@ -264,6 +274,10 @@ class StatelessLLMConfigs(I18nMixin, BaseModel):
         ),
         "openai_llm": Description(
             en="Configuration for Official OpenAI API", zh="官方 OpenAI API 配置"
+        ),
+        "windsurf_llm": Description(
+            en="Configuration for an OpenAI-compatible Windsurf bridge",
+            zh="OpenAI兼容的Windsurf桥接配置",
         ),
         "gemini_llm": Description(
             en="Configuration for Gemini API", zh="Gemini API 配置"
