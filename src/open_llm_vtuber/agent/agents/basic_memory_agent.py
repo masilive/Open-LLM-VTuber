@@ -13,6 +13,7 @@ from .agent_interface import AgentInterface
 from ..output_types import SentenceOutput, DisplayText
 from ..stateless_llm.stateless_llm_interface import StatelessLLMInterface
 from ..stateless_llm.claude_llm import AsyncLLM as ClaudeAsyncLLM
+from ..stateless_llm.gemini_llm import AsyncLLM as GeminiAsyncLLM
 from ..stateless_llm.openai_compatible_llm import AsyncLLM as OpenAICompatibleAsyncLLM
 from ...chat_history_manager import get_history
 from ..transformers import (
@@ -609,7 +610,7 @@ class BasicMemoryAgent(AgentInterface):
                     tool_mode = "Claude"
                     tools = self._formatted_tools_claude
                     llm_supports_native_tools = True
-                elif isinstance(self._llm, OpenAICompatibleAsyncLLM):
+                elif isinstance(self._llm, (OpenAICompatibleAsyncLLM, GeminiAsyncLLM)):
                     tool_mode = "OpenAI"
                     tools = self._formatted_tools_openai
                     llm_supports_native_tools = True
@@ -669,6 +670,12 @@ class BasicMemoryAgent(AgentInterface):
         chat_func_decorated = self._chat_function_factory()
         async for output in chat_func_decorated(input_data):
             yield output
+
+    async def close(self) -> None:
+        """Close resources owned by the underlying stateless LLM when supported."""
+        close = getattr(self._llm, "close", None) or getattr(self._llm, "aclose", None)
+        if close is not None:
+            await close()
 
     def reset_interrupt(self) -> None:
         """Reset interrupt flag."""

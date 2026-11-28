@@ -13,6 +13,7 @@ _PLACEHOLDER_VALUES = {
     "your anthropic api key",
     "your claude api key",
     "your windsurf api key",
+    "your gemini api key",
     "api key",
     "api_key",
     "changeme",
