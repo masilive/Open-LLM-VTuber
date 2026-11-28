@@ -151,15 +151,42 @@ class WindsurfConfig(OpenAICompatibleConfig):
     )
 
 
-class GeminiConfig(OpenAICompatibleConfig):
-    """Configuration for Gemini API."""
+class GeminiConfig(StatelessLLMBaseConfig):
+    """Configuration for the native Gemini API."""
 
-    base_url: str = Field(
-        "https://generativelanguage.googleapis.com/v1beta/openai/", alias="base_url"
+    llm_api_key: str = Field("${GEMINI_API_KEY}", alias="llm_api_key")
+    model: str = Field("gemini-flash-latest", alias="model")
+    temperature: float = Field(1.0, alias="temperature")
+    thinking_level: Literal["minimal", "low", "medium", "high"] = Field(
+        "medium", alias="thinking_level"
     )
     interrupt_method: Literal["system", "user"] = Field(
         "user", alias="interrupt_method"
     )
+
+    _GEMINI_DESCRIPTIONS: ClassVar[dict[str, Description]] = {
+        "llm_api_key": Description(
+            en="Gemini API key. The GEMINI_API_KEY environment variable is used when this remains unset or is a placeholder.",
+            zh="Gemini API 密钥。未设置或仍为占位符时会使用 GEMINI_API_KEY 环境变量。",
+        ),
+        "model": Description(
+            en="Gemini model name. The default tracks the latest Flash model.",
+            zh="Gemini 模型名称。默认跟踪最新的 Flash 模型。",
+        ),
+        "temperature": Description(
+            en="Sampling temperature, between 0 and 2.",
+            zh="采样温度，介于 0 和 2 之间。",
+        ),
+        "thinking_level": Description(
+            en="Gemini reasoning depth: minimal, low, medium, or high.",
+            zh="Gemini 推理深度：minimal、low、medium 或 high。",
+        ),
+    }
+
+    DESCRIPTIONS: ClassVar[dict[str, Description]] = {
+        **StatelessLLMBaseConfig.DESCRIPTIONS,
+        **_GEMINI_DESCRIPTIONS,
+    }
 
 
 class MistralConfig(OpenAICompatibleConfig):

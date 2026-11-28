@@ -7,6 +7,7 @@ from .stateless_llm.stateless_llm_with_template import (
     AsyncLLMWithTemplate as StatelessLLMWithTemplate,
 )
 from .stateless_llm.openai_compatible_llm import AsyncLLM as OpenAICompatibleLLM
+from .stateless_llm.gemini_llm import AsyncLLM as GeminiLLM
 from .stateless_llm.ollama_llm import OllamaLLM
 from .stateless_llm.claude_llm import AsyncLLM as ClaudeLLM
 from .api_key_resolver import resolve_api_key
@@ -27,16 +28,24 @@ class LLMFactory:
             "openai_llm": ("OPENAI_API_KEY",),
             "claude_llm": ("ANTHROPIC_API_KEY", "CLAUDE_API_KEY"),
             "windsurf_llm": ("WINDSURF_API_KEY", "CODEIUM_API_KEY"),
+            "gemini_llm": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
         }.get(llm_provider)
         if env_key_names:
             kwargs["llm_api_key"] = resolve_api_key(
                 kwargs.get("llm_api_key"), env_key_names
             )
 
+        if llm_provider == "gemini_llm":
+            return GeminiLLM(
+                model=kwargs.get("model"),
+                llm_api_key=kwargs.get("llm_api_key"),
+                temperature=kwargs.get("temperature"),
+                thinking_level=kwargs.get("thinking_level"),
+            )
+
         if (
             llm_provider == "openai_compatible_llm"
             or llm_provider == "openai_llm"
-            or llm_provider == "gemini_llm"
             or llm_provider == "zhipu_llm"
             or llm_provider == "deepseek_llm"
             or llm_provider == "groq_llm"
