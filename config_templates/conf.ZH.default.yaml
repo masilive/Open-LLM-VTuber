@@ -118,7 +118,7 @@ character_config:
       # Claude API 配置
       claude_llm:
         base_url: 'https://api.anthropic.com' # 基础 URL
-        llm_api_key: 'YOUR API KEY HERE' # API 密钥
+        llm_api_key: '${ANTHROPIC_API_KEY}' # API 密钥
         model: 'claude-3-haiku-20240307' # 使用的模型
 
       llama_cpp_llm:
@@ -140,8 +140,15 @@ character_config:
         temperature: 1.0 # value between 0 to 2
 
       openai_llm:
-        llm_api_key: 'Your Open AI API key' # OpenAI API 密钥
+        llm_api_key: '${OPENAI_API_KEY}' # OpenAI API 密钥
         model: 'gpt-4o' # 使用的模型
+        temperature: 1.0 # 温度，介于 0 到 2 之间
+
+      # OpenAI兼容的Windsurf桥接端点（例如本地WindsurfAPI兼容服务）
+      windsurf_llm:
+        base_url: 'http://localhost:3003/v1'
+        llm_api_key: '${WINDSURF_API_KEY}'
+        model: 'claude-sonnet-4.5'
         temperature: 1.0 # 温度，介于 0 到 2 之间
 
       gemini_llm:
@@ -497,3 +504,24 @@ live_config:
     room_ids: [1991478060]
     # SESSDATA cookie值（可选，用于认证请求，可以查看发送弹幕用户名）
     sessdata: ""
+  youtube_live:
+    # 要监控的YouTube直播视频ID列表（watch?v=后面的ID）
+    video_ids: []
+    # YouTube Data API密钥；通常应通过YOUTUBE_API_KEY环境变量提供
+    api_key: '${YOUTUBE_API_KEY}'
+    # 最小轮询间隔；YouTube返回的pollingIntervalMillis会优先生效
+    poll_interval_seconds: 5.0
+    # 转发消息时包含作者名称
+    include_author: true
+  kick_live:
+    # 要监控的Kick频道slug列表
+    channel_slugs: []
+    # Kick开发者应用凭据；通常应通过环境变量提供
+    client_id: '${KICK_CLIENT_ID}'
+    client_secret: '${KICK_CLIENT_SECRET}'
+    # 本地webhook监听地址。Kick开发者后台必须配置一个能公网访问并转发到这里的URL
+    webhook_host: '0.0.0.0'
+    webhook_port: 8765
+    webhook_path: '/kick/events'
+    include_author: true
+    verify_signatures: true
