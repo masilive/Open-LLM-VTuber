@@ -33,6 +33,7 @@ def init_client_ws_route(default_context_cache: ServiceContext) -> APIRouter:
         await websocket.accept()
         client_uid = str(uuid4())
 
+        ws_handler.initializing_clients.add(client_uid)
         initialization_task = asyncio.create_task(
             ws_handler.handle_new_connection(websocket, client_uid)
         )

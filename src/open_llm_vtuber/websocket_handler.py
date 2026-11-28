@@ -69,6 +69,8 @@ class WebSocketHandler:
         self.current_conversation_tasks: Dict[str, Optional[asyncio.Task]] = {}
         self.default_context_cache = default_context_cache
         self.received_data_buffers: Dict[str, AudioBuffer] = {}
+        self.pending_client_messages: Dict[str, List[WSMessage]] = {}
+        self.initializing_clients: set[str] = set()
 
         # Message handlers mapping
         self._message_handlers = self._init_message_handlers()
@@ -110,6 +112,7 @@ class WebSocketHandler:
         Raises:
             Exception: If initialization fails
         """
+        self.initializing_clients.add(client_uid)
         try:
             session_service_context = await self._init_service_context(
                 websocket.send_text, client_uid
@@ -122,6 +125,7 @@ class WebSocketHandler:
             await self._send_initial_messages(
                 websocket, client_uid, session_service_context
             )
+            await self._flush_pending_messages(websocket, client_uid)
 
             logger.info(f"Connection established for client {client_uid}")
 
@@ -253,11 +257,59 @@ class WebSocketHandler:
             return
 
         handler = self._message_handlers.get(msg_type)
+        if msg_type == "heartbeat":
+            if handler:
+                await handler(websocket, client_uid, data)
+            return
+
+        if client_uid in self.initializing_clients:
+            pending = self.pending_client_messages.setdefault(client_uid, [])
+            if len(pending) >= 100:
+                raise RuntimeError(
+                    "Too many messages received during client initialization"
+                )
+            pending.append(data)
+            return
+
         if handler:
             await handler(websocket, client_uid, data)
-        else:
-            if msg_type != "frontend-playback-complete":
-                logger.warning(f"Unknown message type: {msg_type}")
+        elif msg_type != "frontend-playback-complete":
+            logger.warning(f"Unknown message type: {msg_type}")
+
+    async def _dispatch_message(
+        self, websocket: WebSocket, client_uid: str, data: WSMessage
+    ) -> None:
+        """Dispatch one already-buffered message without initialization buffering."""
+        msg_type = data.get("type")
+        handler = self._message_handlers.get(msg_type or "")
+        if handler:
+            await handler(websocket, client_uid, data)
+        elif msg_type != "frontend-playback-complete":
+            logger.warning(f"Unknown message type: {msg_type}")
+
+    async def _flush_pending_messages(
+        self, websocket: WebSocket, client_uid: str
+    ) -> None:
+        """Flush buffered pre-initialization messages in their original order."""
+        pending = self.pending_client_messages.get(client_uid)
+        if pending is None:
+            self.initializing_clients.discard(client_uid)
+            return
+
+        index = 0
+        while index < len(pending):
+            data = pending[index]
+            try:
+                await self._dispatch_message(websocket, client_uid, data)
+            except Exception as e:
+                logger.error(f"Error processing buffered message: {e}")
+                await websocket.send_text(
+                    json.dumps({"type": "error", "message": str(e)})
+                )
+            index += 1
+
+        self.initializing_clients.discard(client_uid)
+        self.pending_client_messages.pop(client_uid, None)
 
     async def _handle_group_operation(
         self, websocket: WebSocket, client_uid: str, data: dict
@@ -302,6 +354,8 @@ class WebSocketHandler:
         self.client_connections.pop(client_uid, None)
         self.client_contexts.pop(client_uid, None)
         self.received_data_buffers.pop(client_uid, None)
+        self.pending_client_messages.pop(client_uid, None)
+        self.initializing_clients.discard(client_uid)
         if client_uid in self.current_conversation_tasks:
             task = self.current_conversation_tasks[client_uid]
             if task and not task.done():
@@ -321,6 +375,8 @@ class WebSocketHandler:
         self.client_contexts.pop(client_uid, None)
         self.received_data_buffers.pop(client_uid, None)
         self.chat_group_manager.client_group_map.pop(client_uid, None)
+        self.pending_client_messages.pop(client_uid, None)
+        self.initializing_clients.discard(client_uid)
         if context:
             await context.close()
 
