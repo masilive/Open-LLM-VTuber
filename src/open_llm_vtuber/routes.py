@@ -1,5 +1,6 @@
 import os
 import json
+import asyncio
 from uuid import uuid4
 import numpy as np
 from datetime import datetime
@@ -32,15 +33,38 @@ def init_client_ws_route(default_context_cache: ServiceContext) -> APIRouter:
         await websocket.accept()
         client_uid = str(uuid4())
 
+        initialization_task = asyncio.create_task(
+            ws_handler.handle_new_connection(websocket, client_uid)
+        )
+        communication_task = asyncio.create_task(
+            ws_handler.handle_websocket_communication(websocket, client_uid)
+        )
+
         try:
-            await ws_handler.handle_new_connection(websocket, client_uid)
-            await ws_handler.handle_websocket_communication(websocket, client_uid)
+            done, _ = await asyncio.wait(
+                {initialization_task, communication_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in done:
+                exception = task.exception()
+                if exception is not None:
+                    raise exception
+
+            if not communication_task.done():
+                await communication_task
         except WebSocketDisconnect:
             await ws_handler.handle_disconnect(client_uid)
         except Exception as e:
             logger.error(f"Error in WebSocket connection: {e}")
             await ws_handler.handle_disconnect(client_uid)
             raise
+        finally:
+            for task in (initialization_task, communication_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                initialization_task, communication_task, return_exceptions=True
+            )
 
     return router
 
