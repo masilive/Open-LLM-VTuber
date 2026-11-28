@@ -121,6 +121,7 @@ fastar==0.8.0
     # via fastapi-cloud-cli
 filelock==3.20.3
     # via
+    #   open-llm-vtuber
     #   torch
     #   virtualenv
 flatbuffers==25.12.19

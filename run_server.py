@@ -12,6 +12,10 @@ from upgrade_codes.upgrade_manager import UpgradeManager
 
 from src.open_llm_vtuber.server import WebSocketServer
 from src.open_llm_vtuber.config_manager import Config, read_yaml, validate_config
+from src.open_llm_vtuber.utils.single_instance import (
+    SingleInstanceError,
+    SingleInstanceLock,
+)
 
 os.environ["HF_HOME"] = str(Path(__file__).parent / "models")
 os.environ["MODELSCOPE_CACHE"] = str(Path(__file__).parent / "models")
@@ -116,11 +120,7 @@ def parse_args():
     return parser.parse_args()
 
 
-@logger.catch
-def run(console_log_level: str):
-    init_logger(console_log_level)
-    logger.info(f"Open-LLM-VTuber, version v{get_version()}")
-
+def _run_server(console_log_level: str) -> None:
     # Get selected language
     lang = upgrade_manager.lang
 
@@ -162,6 +162,19 @@ def run(console_log_level: str):
         port=server_config.port,
         log_level=console_log_level.lower(),
     )
+
+
+@logger.catch
+def run(console_log_level: str):
+    init_logger(console_log_level)
+    logger.info(f"Open-LLM-VTuber, version v{get_version()}")
+
+    try:
+        with SingleInstanceLock():
+            _run_server(console_log_level)
+    except SingleInstanceError as exc:
+        logger.error(str(exc))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
